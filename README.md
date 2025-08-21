@@ -7,7 +7,7 @@ A magical webcam experience that uses AI to interpret what's brewing in your cau
 - **Live Webcam Feed**: Real-time video streaming from your device's camera
 - **Frame Capture**: Capture still frames from the video feed
 - **AI Magic Analysis**: Uses Google Gemini AI to analyze captured images with magical interpretations
-- **Text-to-Speech**: Mystical voice narration using Gemini AI TTS
+- **Text-to-Speech**: Mystical voice narration using Web Speech API
 - **Conversational AI**: Chat with your magical assistant about brewing techniques
 - **Responsive Design**: Beautiful, mobile-friendly interface with magical theming
 - **Static Export Ready**: Configured for static deployment

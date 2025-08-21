@@ -63,37 +63,42 @@ export async function interpretImage(
 }
 
 /**
- * Generate speech from text using Gemini TTS via Netlify Functions
+ * Generate speech from text using Web Speech API (client-side TTS)
  */
 export async function generateSpeech(text: string): Promise<SpeechResponse> {
   try {
-    const response = await fetch("/.netlify/functions/text-to-speech", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        text,
-      }),
+    if (!("speechSynthesis" in window)) {
+      return {
+        success: false,
+        audioData: "",
+        error: "Speech synthesis not supported.",
+      };
+    }
+
+    return await new Promise<SpeechResponse>((resolve) => {
+      const utterance = new SpeechSynthesisUtterance(text);
+      const voices = speechSynthesis.getVoices();
+      const preferred =
+        voices.find((v) => /alex|daniel|samantha/i.test(v.name)) || voices[0];
+      if (preferred) utterance.voice = preferred;
+      utterance.rate = 0.95;
+      utterance.pitch = 0.95;
+      utterance.onend = () => resolve({ success: true, audioData: "" });
+      utterance.onerror = (e: any) =>
+        resolve({
+          success: false,
+          audioData: "",
+          error: `Speech synthesis failed: ${e?.error || "unknown"}`,
+        });
+      speechSynthesis.speak(utterance);
     });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const result = await response.json();
-
-    if (!result.success) {
-      throw new Error(result.error || "TTS generation failed");
-    }
-
-    return result;
   } catch (error) {
     console.error("Error generating speech:", error);
-    // Throw error instead of graceful fallback as requested
-    throw new Error(
-      error instanceof Error ? error.message : "TTS generation failed"
-    );
+    return {
+      success: false,
+      audioData: "",
+      error: error instanceof Error ? error.message : "TTS failed",
+    };
   }
 }
 
