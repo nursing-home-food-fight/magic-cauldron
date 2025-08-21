@@ -74,20 +74,9 @@ export default function Home() {
     useState<AIInterpretation | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  // Conversation state
-  const [isListening, setIsListening] = useState(false);
+  // Remove speech recognition state and refs
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [transcriptText, setTranscriptText] = useState("");
-
-  // Speech recognition ref
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
-  // Control recognition restarts and trigger gating
-  const autoRestartRef = useRef(true);
   const inProgressRef = useRef(false);
-  const lastTriggerTsRef = useRef<number>(0);
-  const COOLDOWN_MS = 12000; // prevent rapid re-triggers after a run
-  const DEBOUNCE_MS = 2000; // avoid duplicate triggers from interim results
-  // Using server-side TTS (no browser voice selection needed)
 
   useEffect(() => {
     async function setupCamera() {
@@ -157,7 +146,6 @@ export default function Home() {
           });
         } finally {
           setIsAnalyzing(false);
-          lastTriggerTsRef.current = Date.now();
           inProgressRef.current = false;
         }
       }
@@ -166,32 +154,16 @@ export default function Home() {
 
   // Speak using server-generated audio (OpenAI TTS via Netlify function)
   const speakText = async (text: string) => {
-    autoRestartRef.current = false;
-    try {
-      recognitionRef.current?.abort();
-    } catch {}
-
     const tts = await generateSpeech(text);
     if (!tts.success || !tts.audioData) {
-      autoRestartRef.current = true;
-      try {
-        recognitionRef.current?.start();
-      } catch {}
       return;
     }
-
     const mime = tts.mimeType || "audio/mpeg";
     const audio = new Audio(`data:${mime};base64,${tts.audioData}`);
-
     await new Promise<void>((resolve) => {
       audio.addEventListener("play", () => setIsSpeaking(true));
       const finalize = () => {
         setIsSpeaking(false);
-        autoRestartRef.current = true;
-        setTranscriptText("");
-        try {
-          recognitionRef.current?.start();
-        } catch {}
         resolve();
       };
       audio.addEventListener("ended", finalize);
@@ -200,77 +172,7 @@ export default function Home() {
     });
   };
 
-  // Speech recognition setup
-  useEffect(() => {
-    if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
-      const SpeechRecognition =
-        window.SpeechRecognition || window.webkitSpeechRecognition;
-      const recognition = new SpeechRecognition();
-
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = "en-US";
-
-      recognition.onstart = () => {
-        setIsListening(true);
-        setTranscriptText("");
-      };
-
-      recognition.onresult = (event: SpeechRecognitionEvent) => {
-        let transcript = "";
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          transcript += event.results[i][0].transcript;
-        }
-        setTranscriptText(transcript);
-
-        // Trigger magic word: "abra cadabra"
-        const now = Date.now();
-        const withinCooldown = now - lastTriggerTsRef.current < COOLDOWN_MS;
-        if (/\babra\s*cadabra\b/i.test(transcript)) {
-          if (!inProgressRef.current && !isAnalyzing && !withinCooldown) {
-            // Gate further triggers immediately
-            inProgressRef.current = true;
-            lastTriggerTsRef.current = now;
-            setTranscriptText("");
-            // Start analysis pipeline
-            captureFrame();
-          }
-        }
-      };
-
-      recognition.onend = () => {
-        setIsListening(false);
-        // Auto-restart to keep always listening (unless we paused for TTS)
-        if (autoRestartRef.current) {
-          try {
-            recognition.start();
-          } catch {}
-        }
-      };
-
-      recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-        console.error("Speech recognition error:", event.error);
-        setIsListening(false);
-      };
-
-      recognitionRef.current = recognition;
-      // Attempt to start listening immediately
-      try {
-        recognition.start();
-      } catch {}
-    }
-
-    return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.abort();
-      }
-      if (window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-      }
-    };
-  }, []);
-
-  // No manual controls; recognition runs continuously
+  // Remove speech recognition setup and manual controls
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white">
@@ -321,7 +223,13 @@ export default function Home() {
                   <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : (
-                <span>Say "Abra cadabra" to trigger analysis</span>
+                <button
+                  className="mt-4 px-6 py-2 bg-yellow-500 hover:bg-yellow-600 text-purple-900 font-bold rounded-lg shadow-lg transition"
+                  onClick={captureFrame}
+                  disabled={isAnalyzing || !isStreaming}
+                >
+                  Capture Frame & Analyze
+                </button>
               )}
             </div>
           </div>
@@ -397,7 +305,7 @@ export default function Home() {
                 <span className="bg-purple-600 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold flex-shrink-0">
                   3
                 </span>
-                <span>Say "Abra cadabra" to trigger analysis</span>
+                <span>Press the <strong>Capture Frame & Analyze</strong> button to trigger analysis</span>
               </li>
               <li className="flex items-start gap-4">
                 <span className="bg-purple-600 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold flex-shrink-0">
