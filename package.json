@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.2.0",
+    "@netlify/functions": "^2.8.2",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
