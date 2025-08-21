@@ -1,12 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { interpretImage, type AIInterpretation } from "../services/ai";
 
 export default function Home() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [aiInterpretation, setAiInterpretation] =
+    useState<AIInterpretation | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   useEffect(() => {
     async function setupCamera() {
@@ -43,7 +47,7 @@ export default function Home() {
     };
   }, []);
 
-  const captureFrame = () => {
+  const captureFrame = async () => {
     if (videoRef.current && canvasRef.current) {
       const canvas = canvasRef.current;
       const video = videoRef.current;
@@ -53,6 +57,24 @@ export default function Home() {
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         ctx.drawImage(video, 0, 0);
+
+        // Analyze the captured frame with AI
+        setIsAnalyzing(true);
+        setAiInterpretation(null);
+
+        try {
+          const interpretation = await interpretImage(canvas);
+          setAiInterpretation(interpretation);
+        } catch (error) {
+          console.error("Error analyzing image:", error);
+          setAiInterpretation({
+            success: false,
+            text: "",
+            error: "Failed to analyze image",
+          });
+        } finally {
+          setIsAnalyzing(false);
+        }
       }
     }
   };
@@ -102,10 +124,17 @@ export default function Home() {
             <button
               type="button"
               onClick={captureFrame}
-              disabled={!isStreaming}
+              disabled={!isStreaming || isAnalyzing}
               className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-bold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-105 disabled:scale-100"
             >
-              📸 Capture Current Frame
+              {isAnalyzing ? (
+                <>
+                  ✨ Analyzing with AI Magic...
+                  <div className="inline-block ml-2 w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                </>
+              ) : (
+                "📸 Capture & Analyze Frame"
+              )}
             </button>
           </div>
 
@@ -124,6 +153,29 @@ export default function Home() {
             </div>
           </div>
         </div>
+
+        {/* AI Interpretation Section */}
+        {aiInterpretation && (
+          <div className="mt-8 max-w-4xl mx-auto">
+            <div className="bg-gradient-to-r from-emerald-800/50 to-teal-800/50 backdrop-blur-sm rounded-xl p-6 border border-emerald-400/30">
+              <h2 className="text-2xl font-bold text-center mb-4 text-emerald-400">
+                🔮 AI Magical Analysis 🔮
+              </h2>
+              {aiInterpretation.success ? (
+                <div className="text-lg text-emerald-100 leading-relaxed">
+                  {aiInterpretation.text}
+                </div>
+              ) : (
+                <div className="bg-red-900/50 border border-red-500 rounded-lg p-4 text-center">
+                  <p className="text-red-200">
+                    {aiInterpretation.error ||
+                      "Failed to analyze the magical contents"}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Instructions */}
         <div className="mt-12 max-w-2xl mx-auto">
@@ -144,22 +196,26 @@ export default function Home() {
                 <span className="bg-purple-600 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold flex-shrink-0">
                   2
                 </span>
-                <span>Place your image</span>
+                <span>Place your object or ingredient in the cauldron</span>
               </li>
               <li className="flex items-start gap-4">
                 <span className="bg-purple-600 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold flex-shrink-0">
                   3
                 </span>
                 <span>
-                  Say the magic word{" "}
-                  <strong className="text-yellow-400">"Abra Cadabra"</strong>
+                  Click{" "}
+                  <strong className="text-yellow-400">
+                    "Capture & Analyze Frame"
+                  </strong>
                 </span>
               </li>
               <li className="flex items-start gap-4">
                 <span className="bg-purple-600 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold flex-shrink-0">
                   4
                 </span>
-                <span>Wait for your magical response!</span>
+                <span>
+                  Wait for the AI wizard to analyze your magical brewing!
+                </span>
               </li>
             </ol>
           </div>
