@@ -11,6 +11,7 @@ export interface SpeechResponse {
   audioData: string; // base64 encoded audio
   success: boolean;
   error?: string;
+  mimeType?: string;
 }
 
 export interface ConversationResponse {
@@ -63,35 +64,24 @@ export async function interpretImage(
 }
 
 /**
- * Generate speech from text using Web Speech API (client-side TTS)
+ * Generate speech via Netlify Function (OpenAI TTS)
  */
 export async function generateSpeech(text: string): Promise<SpeechResponse> {
   try {
-    if (!("speechSynthesis" in window)) {
+    const response = await fetch("/.netlify/functions/tts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    if (!response.ok) {
       return {
         success: false,
         audioData: "",
-        error: "Speech synthesis not supported.",
+        error: `HTTP ${response.status}`,
       };
     }
-
-    return await new Promise<SpeechResponse>((resolve) => {
-      const utterance = new SpeechSynthesisUtterance(text);
-      const voices = speechSynthesis.getVoices();
-      const preferred =
-        voices.find((v) => /alex|daniel|samantha/i.test(v.name)) || voices[0];
-      if (preferred) utterance.voice = preferred;
-      utterance.rate = 0.95;
-      utterance.pitch = 0.95;
-      utterance.onend = () => resolve({ success: true, audioData: "" });
-      utterance.onerror = (e: any) =>
-        resolve({
-          success: false,
-          audioData: "",
-          error: `Speech synthesis failed: ${e?.error || "unknown"}`,
-        });
-      speechSynthesis.speak(utterance);
-    });
+    const json = await response.json();
+    return json;
   } catch (error) {
     console.error("Error generating speech:", error);
     return {
@@ -127,8 +117,7 @@ export async function handleConversation(
 
     const result = await response.json();
 
-    // Generate speech using Gemini TTS API
-    // If TTS fails, the error will be thrown and caught by the outer try-catch
+    // Generate speech via server TTS
     const speechResult = await generateSpeech(result.text);
 
     return {

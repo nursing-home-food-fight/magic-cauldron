@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { interpretImage, type AIInterpretation } from "../services/ai";
+import {
+  interpretImage,
+  type AIInterpretation,
+  generateSpeech,
+} from "../services/ai";
 
 // Type declarations for Web Speech API
 declare global {
@@ -77,6 +81,13 @@ export default function Home() {
 
   // Speech recognition ref
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  // Control recognition restarts and trigger gating
+  const autoRestartRef = useRef(true);
+  const inProgressRef = useRef(false);
+  const lastTriggerTsRef = useRef<number>(0);
+  const COOLDOWN_MS = 12000; // prevent rapid re-triggers after a run
+  const DEBOUNCE_MS = 2000; // avoid duplicate triggers from interim results
+  // Using server-side TTS (no browser voice selection needed)
 
   useEffect(() => {
     async function setupCamera() {
@@ -125,6 +136,8 @@ export default function Home() {
         ctx.drawImage(video, 0, 0);
 
         // Analyze the captured frame with AI
+        if (inProgressRef.current) return;
+        inProgressRef.current = true;
         setIsAnalyzing(true);
         setAiInterpretation(null);
 
@@ -133,7 +146,7 @@ export default function Home() {
           setAiInterpretation(interpretation);
           if (interpretation.success && interpretation.text) {
             // Speak immediately after analysis completes
-            speakText(interpretation.text);
+            await speakText(interpretation.text);
           }
         } catch (error) {
           console.error("Error analyzing image:", error);
@@ -144,48 +157,47 @@ export default function Home() {
           });
         } finally {
           setIsAnalyzing(false);
+          lastTriggerTsRef.current = Date.now();
+          inProgressRef.current = false;
         }
       }
     }
   };
 
-  // Speak using browser TTS
-  const speakText = (text: string) => {
-    speakWithBrowserTTS(text);
-  };
+  // Speak using server-generated audio (OpenAI TTS via Netlify function)
+  const speakText = async (text: string) => {
+    autoRestartRef.current = false;
+    try {
+      recognitionRef.current?.abort();
+    } catch {}
 
-  // Browser TTS fallback function
-  const speakWithBrowserTTS = (text: string) => {
-    if ("speechSynthesis" in window) {
-      // Stop any ongoing speech
-      window.speechSynthesis.cancel();
-
-      const utterance = new SpeechSynthesisUtterance(text);
-
-      // Configure voice to sound mystical
-      utterance.rate = 0.8;
-      utterance.pitch = 1.1;
-      utterance.volume = 0.9;
-
-      // Try to find a suitable voice
-      const voices = window.speechSynthesis.getVoices();
-      const preferredVoice = voices.find(
-        (voice) =>
-          voice.name.toLowerCase().includes("female") ||
-          voice.name.toLowerCase().includes("natural")
-      );
-      if (preferredVoice) {
-        utterance.voice = preferredVoice;
-      }
-
-      utterance.onstart = () => setIsSpeaking(true);
-      utterance.onend = () => {
-        setIsSpeaking(false);
-      };
-      utterance.onerror = () => setIsSpeaking(false);
-
-      window.speechSynthesis.speak(utterance);
+    const tts = await generateSpeech(text);
+    if (!tts.success || !tts.audioData) {
+      autoRestartRef.current = true;
+      try {
+        recognitionRef.current?.start();
+      } catch {}
+      return;
     }
+
+    const mime = tts.mimeType || "audio/mpeg";
+    const audio = new Audio(`data:${mime};base64,${tts.audioData}`);
+
+    await new Promise<void>((resolve) => {
+      audio.addEventListener("play", () => setIsSpeaking(true));
+      const finalize = () => {
+        setIsSpeaking(false);
+        autoRestartRef.current = true;
+        setTranscriptText("");
+        try {
+          recognitionRef.current?.start();
+        } catch {}
+        resolve();
+      };
+      audio.addEventListener("ended", finalize);
+      audio.addEventListener("error", finalize);
+      audio.play().catch(finalize);
+    });
   };
 
   // Speech recognition setup
@@ -212,18 +224,28 @@ export default function Home() {
         setTranscriptText(transcript);
 
         // Trigger magic word: "abra cadabra"
-        if (/\babra\s*cadabra\b/i.test(transcript) && !isAnalyzing) {
-          // Start analysis pipeline
-          captureFrame();
+        const now = Date.now();
+        const withinCooldown = now - lastTriggerTsRef.current < COOLDOWN_MS;
+        if (/\babra\s*cadabra\b/i.test(transcript)) {
+          if (!inProgressRef.current && !isAnalyzing && !withinCooldown) {
+            // Gate further triggers immediately
+            inProgressRef.current = true;
+            lastTriggerTsRef.current = now;
+            setTranscriptText("");
+            // Start analysis pipeline
+            captureFrame();
+          }
         }
       };
 
       recognition.onend = () => {
         setIsListening(false);
-        // Auto-restart to keep always listening
-        try {
-          recognition.start();
-        } catch {}
+        // Auto-restart to keep always listening (unless we paused for TTS)
+        if (autoRestartRef.current) {
+          try {
+            recognition.start();
+          } catch {}
+        }
       };
 
       recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
