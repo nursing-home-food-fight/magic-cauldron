@@ -4,13 +4,7 @@
   publish = "out"
 
 [build.environment]
-  NODE_VERSION = "18"
-
-# Redirect all function calls to the functions directory
-[[redirects]]
-  from = "/.netlify/functions/*"
-  to = "/.netlify/functions/:splat"
-  status = 200
+  NODE_VERSION = "22"
 
 # Handle SPA routing for Next.js static export
 [[redirects]]
