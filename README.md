@@ -7,7 +7,7 @@ A magical webcam experience that uses AI to interpret what's brewing in your cau
 - **Live Webcam Feed**: Real-time video streaming from your device's camera
 - **Frame Capture**: Capture still frames from the video feed
 - **AI Magic Analysis**: Uses Google Gemini AI to analyze captured images with magical interpretations
-- **Text-to-Speech**: Mystical voice narration using Web Speech API
+- **Text-to-Speech**: Mystical voice narration using Gemini AI TTS
 - **Conversational AI**: Chat with your magical assistant about brewing techniques
 - **Responsive Design**: Beautiful, mobile-friendly interface with magical theming
 - **Static Export Ready**: Configured for static deployment
@@ -116,7 +116,8 @@ magic-cauldron/
 ├── netlify/
 │   └── functions/           # Serverless functions for AI API calls
 │       ├── interpret-image.ts
-│       └── conversation.ts
+│       ├── conversation.ts
+│       └── text-to-speech.ts
 ├── out/                     # Static build output (auto-generated)
 ├── netlify.toml            # Netlify configuration
 └── src/                    # Your Next.js app
@@ -126,6 +127,7 @@ magic-cauldron/
 Once deployed, your functions will be available at:
 - `https://your-site.netlify.app/.netlify/functions/interpret-image`
 - `https://your-site.netlify.app/.netlify/functions/conversation`
+- `https://your-site.netlify.app/.netlify/functions/text-to-speech`
 
 #### ⚠️ Troubleshooting Netlify Deployment
 

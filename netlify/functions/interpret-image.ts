@@ -62,7 +62,7 @@ Consider:
 
 Feel free to ask for any additional information you need to brew the recipe, like what ingredients are available, what the user's preferences are, etc.
 
-Respond in a whimsical, magical tone as if you're narrating a spell in progress. Keep it family-friendly and fun!
+Respond in a whimsical, magical tone as if you're narrating a spell in progress. Keep it family-friendly and fun! Do not include anything other than text, this will be read out as a speech.
     `.trim();
 
     const result = await model.generateContent([
